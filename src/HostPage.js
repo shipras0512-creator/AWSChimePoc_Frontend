@@ -7,6 +7,7 @@ import {
   LogLevel,
   MeetingSessionConfiguration,
 } from "amazon-chime-sdk-js";
+import { useNavigate } from "react-router-dom";
 
 const backendUrl = "https://chimepoc-h5gmdmhndmbvd9h6.centralindia-01.azurewebsites.net";
 
@@ -17,10 +18,15 @@ function HostPage() {
   const [meetingSession, setMeetingSession] = useState(null);
   const [transcripts, setTranscripts] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [status, setStatus] = useState("");
+  const [isSharingScreen, setIsSharingScreen] = useState(false);
 
   const audioRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const screenShareRef = useRef(null);
+
+  const navigate = useNavigate();
 
   const createMeeting = async () => {
     try {
@@ -71,8 +77,11 @@ function HostPage() {
       const observer = {
         videoTileDidUpdate: (tile) => {
           if (!tile.boundAttendeeId || !tile.tileId) return;
-
-          if (tile.localTile && localVideoRef.current) {
+          if (tile.isContent) {
+            if (screenShareRef.current) {
+              session.audioVideo.bindVideoElement(tile.tileId, screenShareRef.current);
+            }
+          }else if (tile.localTile && localVideoRef.current) {
             session.audioVideo.bindVideoElement(tile.tileId, localVideoRef.current);
           } else if (!tile.localTile && remoteVideoRef.current) {
             session.audioVideo.bindVideoElement(tile.tileId, remoteVideoRef.current);
@@ -172,10 +181,32 @@ function HostPage() {
     alert("👋 Meeting ended and cleaned up");
   };
 
+    const startScreenShare = async () => {
+    try {
+      await meetingSession.audioVideo.startContentShareFromScreenCapture();
+      setIsSharingScreen(true);
+      setStatus("🖥️ Sharing screen...");
+    } catch (err) {
+      console.error("Error starting screen share:", err);
+      setStatus("❌ Failed to start screen share");
+    }
+  };
+
+  const stopScreenShare = () => {
+    try {
+      meetingSession.audioVideo.stopContentShare();
+      setIsSharingScreen(false);
+      setStatus("🛑 Stopped screen sharing");
+    } catch (err) {
+      console.error("Error stopping screen share:", err);
+    }
+  };
+
   return (
     <div style={{ padding: 20 }}>
-      <h2>AWS Chime Host Page</h2>
-      <button onClick={createMeeting}>Start Meeting (Host)</button>
+      <h2>AWS Chime POC</h2>
+      <button onClick={() => navigate("/join")}>Join Meeting</button>
+      <button onClick={createMeeting} style={{ marginLeft: 10 }}>Start Meeting (Host)</button>
       {meetingSession && <button onClick={endMeeting} style={{ marginLeft: 10, background: "#9f0a0aff", color: "#fff" }} disabled={!meetingSession}>End Meeting</button>}
 
       {meeting && meeting.MeetingId && (
@@ -230,7 +261,17 @@ function HostPage() {
             ))}
           </ul>
 
-
+        <div style={{ marginTop: 20 }}>
+          {!isSharingScreen ? (
+            <button onClick={startScreenShare} style={{ marginLeft: "10px" }}>
+              Start Screen Share
+            </button>
+          ) : (
+            <button onClick={stopScreenShare} style={{ marginLeft: "10px" }}>
+              Stop Screen Share
+            </button>
+          )}
+        </div>
 
         <div style={{ marginTop: 20 }}>
           <h3>🔊 Audio / 🎥 Video</h3>
@@ -255,6 +296,17 @@ function HostPage() {
                 style={{ width: 300, border: "1px solid #ccc" }}
               />
             </div>
+            <div>
+          <div>
+          <h4>Screen Share</h4>
+          <video
+            ref={screenShareRef}
+            style={{ width: "300px", border: "1px solid #ccc" }}
+            autoPlay
+            playsInline
+          />
+          </div>
+        </div>
           </div>
 
           <div style={{ marginTop: 10 }}>
@@ -288,5 +340,3 @@ function HostPage() {
 }
 
 export default HostPage;
-
- 
